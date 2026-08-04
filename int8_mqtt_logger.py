@@ -9,15 +9,15 @@ training_dir = "training_outputs/"
 
 # --- CONFIGURATION ---
 BROKER_IP = "192.168.2.110" # CHANGE TO YOUR PC'S IP
-TOPIC = "S25U/#" # Standard topic for most MQTT sensor apps
+TOPIC = "S25U/#" # Chosen topic from sensor MQTT app
 CSV_FILENAME = data_dir + "gesture_dataset_raw.csv"
 WINDOW_SIZE = 100
 
 # --- LOAD EDGE MODEL ---
-print("Loading ONNX model and scalers...")
+print("Loading ONNX model and calibration parameters...")
 ort_session = ort.InferenceSession(training_dir + "tiny_gesture.onnx")
-scaler_mean = np.load(training_dir + "scaler_mean.npy")
-scaler_scale = np.load(training_dir + "scaler_scale.npy")
+
+# Scalers removed: We use dynamic DC-blocking now
 
 CLASSES = ["Idle", "Gesture 1", "Gesture 2"]
 live_buffer = deque(maxlen=WINDOW_SIZE)
@@ -58,9 +58,9 @@ def on_message(client, userdata, msg):
             # Once we have 1 second of data, run inference
             if len(live_buffer) == WINDOW_SIZE:
                 
-                # 1. Convert to numpy and normalize using training scalers
+                # 1. Convert to numpy and apply dynamic DC-blocking (remove gravity)
                 features = np.array(live_buffer)
-                features = (features - scaler_mean) / scaler_scale
+                features = features - np.mean(features, axis=0)
                 
                 # 2. Reshape for PyTorch/ONNX 1D-CNN format: (Batch, Channels, Sequence_Length)
                 features = features.T.reshape(1, 6, WINDOW_SIZE).astype(np.float32)
@@ -91,7 +91,7 @@ if __name__ == "__main__":
     client.on_connect = on_connect
     client.on_message = on_message
     
-    # Ensure this matches your Mosquitto broker setup
+    # Ensure this matches the Mosquitto broker setup
     client.connect(BROKER_IP, 1883, 60)
     
     # Blocking loop to keep the script running

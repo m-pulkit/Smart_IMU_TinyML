@@ -7,8 +7,8 @@ import time
 data_dir = "data/"
 
 # --- CONFIGURATION ---
-BROKER_IP = "192.168.2.110" # CHANGE TO YOUR PC'S IP
-TOPIC = "S25U/#" # Standard topic for most MQTT sensor apps
+BROKER_IP = "192.168.2.110" # PC'S IPv4
+TOPIC = "S25U/#" # Chosen topic from sensor MQTT app
 CSV_FILENAME = data_dir + "gesture_dataset_raw.csv"
 
 # Global dictionary to hold the latest readings to sync Accel + Gyro
