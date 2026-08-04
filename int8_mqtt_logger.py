@@ -62,21 +62,39 @@ def on_message(client, userdata, msg):
                 features = np.array(live_buffer)
                 features = features - np.mean(features, axis=0)
                 
-                # 2. Reshape for PyTorch/ONNX 1D-CNN format: (Batch, Channels, Sequence_Length)
-                features = features.T.reshape(1, 6, WINDOW_SIZE).astype(np.float32)
+                # --- PROBABILISTIC MODELING & SYSTEM ID ---
+                # Identify live sensor noise variance, inject Gaussian noise, 
+                # and sample the predictive distribution to calculate Epistemic Uncertainty.
+                N_SAMPLES = 10
+                sensor_noise_std = np.std(features, axis=0) * 0.3 # Scale noise to IMU characteristics
                 
-                # 3. Run Edge Inference via ONNX
-                ort_inputs = {ort_session.get_inputs()[0].name: features}
-                ort_outs = ort_session.run(None, ort_inputs)
+                predictions_batch = []
+                for _ in range(N_SAMPLES):
+                    # Inject Brownian noise to simulate physical sensor uncertainty
+                    noisy_sample = features + np.random.normal(0, sensor_noise_std, features.shape)
+                    noisy_sample = noisy_sample.T.reshape(1, 6, WINDOW_SIZE).astype(np.float32)
+                    
+                    ort_inputs = {ort_session.get_inputs()[0].name: noisy_sample}
+                    out = ort_session.run(None, ort_inputs)[0][0]
+                    predictions_batch.append(out)
+                    
+                predictions_batch = np.array(predictions_batch)
                 
-                # 4. Get Prediction
-                prediction = np.argmax(ort_outs[0])
+                # Apply softmax to convert raw logits to probability distributions
+                exp_preds = np.exp(predictions_batch - np.max(predictions_batch, axis=1, keepdims=True))
+                probs = exp_preds / np.sum(exp_preds, axis=1, keepdims=True)
                 
-                if prediction != 0: # Only trigger if not "Idle"
-                    print(f"\n🚀 [EVENT TRIGGERED]: {CLASSES[prediction]}")
+                # Calculate Mean Probability and Shannon Entropy (Uncertainty)
+                mean_probs = np.mean(probs, axis=0)
+                prediction = np.argmax(mean_probs)
+                entropy = -np.sum(mean_probs * np.log(mean_probs + 1e-9))
+                
+                # Only trigger if not "Idle" AND model is highly confident (Low Entropy)
+                if prediction != 0 and entropy < 0.6: 
+                    print(f"\n🚀 [EVENT TRIGGERED]: {CLASSES[prediction]} (Confidence: {mean_probs[prediction]*100:.1f}%)")
+                    print(f"   |-> Predictive Entropy (Uncertainty): {entropy:.4f}")
                     print(f"   |-> Simulated SRAM Footprint: ~12.8 KB")
                     print(f"   |-> Computational Cost: ~38,400 MACs")
-                    print(f"   |-> Flash Weight Size: < 8 KB")
                     print("-" * 50)
                     
                     # Clear buffer to prevent double-triggering on the tail end of the movement
