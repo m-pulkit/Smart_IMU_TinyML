@@ -1,0 +1,19 @@
+Smart_IMU_TinyML/
+│
+├── data/
+│   └── gesture_dataset_raw.csv           # Uncalibrated 6-axis IMU raw telemetry (100Hz)
+│
+├── Notebooks/
+│   ├── TinyML_Gesture_CNN.ipynb          # PyTorch model definition, training, and DC-blocking logic
+│   └── Export_to_Edge.ipynb              # ONNX conversion and Representative Dataset generation for INT8
+│
+├── training_outputs/
+│   ├── tiny_gesture_net.pth              # Trained PyTorch FP32 weights
+│   ├── tiny_gesture.onnx                 # Exported ONNX graph for Edge compilation
+│   ├── tiny_gesture.onnx.data            # External tensor data for ONNX
+│   ├── representative_dataset.bin        # Raw binary calibration data for PTQ (Post-Training Quantization)
+│   └── old (Scaler instead of DC)/       # Deprecated models using global scalers instead of dynamic DC-blocking
+│
+├── mosquitto.conf                        # Configuration for local MQTT broker
+├── mqtt_logger.py                        # Script Collecting Real-time data via MQTT and Basic Preprocessing
+└── live_edge_emulator.py                 # Live inference wrapper with Probabilistic Modeling (Monte Carlo TTA)
